@@ -3,7 +3,7 @@ Gavin King
 :awestruct-tags: [ "Jakarta Persistence" ]
 :awestruct-layout: blog-post
 ---
-_Cross-posted from https://gavinking.substack.com/p/a-preview-of-jakarta-persistence[Substack]._
+_Cross-posted from https://gavinking.substack.com/p/a-summary-of-jakarta-persistence[Substack]._
 
 One of the most important experiences of my career was working with Linda DeMichiel from Sun, Mike Keith from TopLink, Evan Ireland from Sybase, and others, to design and write the first version of the Java Persistence specification.
 
