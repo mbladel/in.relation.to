@@ -1,0 +1,324 @@
+= A summary of Jakarta Persistence 3.2
+Gavin King
+:awestruct-tags: [ "Jakarta Persistence" ]
+:awestruct-layout: blog-post
+---
+_Cross-posted from https://gavinking.substack.com/p/a-preview-of-jakarta-persistence[Substack]._
+
+One of the most important experiences of my career was working with Linda DeMichiel from Sun, Mike Keith from TopLink, Evan Ireland from Sybase, and others, to design and write the first version of the Java Persistence specification.
+
+Today this technology enjoys broad acceptance, even among former critics. But in recent years, despite a name change to Jakarta Persistence, the spec has not evolved rapidly. Not until now, that is. Over the last year or so, Lukas Jungmann from Oracle and I have been working rather hard to bring you the biggest release of Persistence in a long time.
+
+This post will concentrate on new features we’ve added to Jakarta Persistence. It’s worth mentioning that quite a lot of work has gone into clarifying the semantics of existing features, and rewriting certain sections of the spec for clarity and readability. This is an ongoing effort. The spec is more than 500 pages in length; rewriting such text without accidentally changing its meaning is a slow and painstaking process.
+
+In a previous post I talked about https://in.relation.to/2024/04/01/jakarta-persistence-3/[Jakarta Data]. Alignment of the two specifications has been a further priority.
+
+== API improvements
+
+There’s a lot to cover in this section. Let’s begin with a new way to start JPA.
+
+=== Programmatic configuration
+
+There’s nothing wrong with using `persistence.xml` to configure a persistence unit, but sometimes we prefer to just write Java code.
+
+[source,java]
+----
+var emf =
+        new PersistenceConfiguration()
+                .name("Bookshop")
+                .nonJtaDataSource("java:global/jdbc/BookshopData")
+                .managedClass(Book.class)
+                .managedClass(Author.class)
+                .property(PersistenceConfiguration.LOCK_TIMEOUT, 5000)
+                .createEntityManagerFactory()
+----
+
+Constants like `LOCK_TIMEOUT` hold the names of standard configuration properties like `"jakarta.persistence.lock.timeout"`.
+
+Now that we have an `EntityManagerFactory`, we might need to export a schema to the database.
+
+=== Programmatic schema export
+
+The new `SchemaManager` interface is isomorphic to the similarly-named API which debuted in Hibernate 6.2.
+
+[source,java]
+----
+emf.getSchemaManager().create(true); // create all the tables and stuff
+----
+
+`SchemaManager` even has the lovely `truncate()` method for cleaning up before or after tests.
+
+[source,java]
+----
+emf.getSchemaManager().truncate(); // destroy all my data
+----
+
+Next, we’ll need to obtain a session, start a transaction, handle exceptions that might occur…
+
+=== Convenience methods to tidy up exception handling
+
+The `EntityManagerFactory` now has operations to perform work in a transaction, relieving the developer of the need to write messy exception handling code.
+[source,java]
+----
+emf.runInTransaction(em -> em.persist(book));
+----
+
+There’s a version for work which returns a value.
+
+[source,java]
+----
+var book = emf.callInTransaction(em -> em.find(Book.class, isbn));
+----
+
+These methods are very similar to `inTransaction()` and `fromTransaction()` in Hibernate.
+
+Occasionally, we need to call JDBC directly. So there are similar methods defined in `EntityManager` for working with JDBC Connections.
+
+[source,java]
+----
+em.runWithConnection(c -> {
+    try (procedure = connection.prepareCall("{call something(?)}");
+        procedure.setLong(1, id);
+        procedure.execute();
+    }
+});
+----
+
+We’ve now arrived at the `EntityManager` itself.
+
+=== Options!
+
+In JPA 1.0, we decided to let you pass “hints”—that is, maps full of stringly-labeled values—to the methods `find()`, `lock()`, and `refresh()`.
+The code looks something like this:
+
+[source,java]
+----
+var book =
+        em.find(Book.class, isbn,
+                Map.of("jakarta.persistence.cache.retrieveMode",
+                            CacheRetrieveMode.BYPASS,
+                       "jakarta.persistence.query.timeout", 500,
+                       "org.hibernate.readOnly", true);
+----
+
+Ufff. You can only imagine my shame.
+
+Instead of donning sackcloth, we’re belatedly fixing this. The new marker interfaces `FindOption`, `LockOption`, and `RefreshOption` each have several built-in implementations, but they may also be implemented to represent provider-specific options.
+
+[source,java]
+----
+var book =
+        em.find(Book.class, isbn, CacheRetrieveMode.BYPASS,
+                Timeout.milliseconds(500), READ_ONLY);
+----
+
+This approach is more readable and much more type safe.
+
+For the same reason, we’ve also added:
+
+- `setTimeout()` to `EntityTransaction`, and
+- `setCacheStoreMode()` and `setCacheRetrieveMode()` to `EntityManager` and `Query`.
+
+=== Obtaining a managed reference from a detached reference
+
+This overload of `getReference()` made its first appearance in Hibernate 6.0. It’s now been promoted to `EntityManager`.
+
+[source,java]
+----
+<T> T getReference(T object);
+----
+
+This method lets you trade a detached reference to an entity (even an unfetched proxy) for a reference associated with the persistence context, without fetching any data. It comes in handy.
+
+== Type safety and the static metamodel
+
+The static metamodel was a thing I came up with for JPA 2.0 as a way to make the criteria query API type safe. I then spent more than a decade doubting that this had been a good idea. Well, it turns out that it really was a good idea, but that the criteria API was never its only application, nor even its most useful application. In Jakarta Persistence 3.2—and in Jakarta Data 1.0—we’re finally taking advantage of its full potential.
+
+=== Type safe named things
+
+The first new feature of the static metamodel is that it now contains `static final` constants with the names of entity fields, named queries, named graphs, and named SQL result set mappings. One of many uses of this feature is in defining bidirectional association mappings.
+
+[source,java]
+----
+@ManyToMany(mappedBy=Book_.AUTHORS)
+List<Book> books;
+----
+
+This feature already exists in Hibernate 6, and we’re already seeing the community embrace it. But there’s more.
+
+=== TypedQueryReference
+
+The interface `TypedQueryReference` represents a typed reference to a named query. The `EntityManager` will trade you one of these for a `TypedQuery`.
+
+[source,java]
+----
+TypedQueryReference<Book> bookNamedQuery = ... ;
+TypedQuery<Book> query = em.createQuery(bookNamedQuery);
+----
+
+Why on earth would we invent such a thing, you must be wondering?
+
+Well, the static metamodel now has one of these for every one of your named queries.
+
+[source,java]
+----
+List<Book> books = em.createQuery(Book_.byTitle).getResultList();
+----
+
+That’s right, named queries just got typesafe.
+
+=== EntityGraph
+
+The `EntityGraph` facility, first introduced in JPA 2.1 used to be, well, a bit of a mess. (You can’t blame me this time, I didn’t contribute to 2.1.) In Persistence 3.2, we’ve cleaned up this whole API, and made it much more usable. We even had to deprecate certain incorrectly-typed methods, which we’ve scheduled for removal in 4.0. We’ve also moved away from the whole confusing “fetch graph” vs “load graph” distinction.
+
+Of course, ``EntityGraph``s didn’t get left behind by the type safety bus.
+
+[source,java]
+----
+var bookWithAuthors = em.createEntityGraph(Book.class);
+bookWithAuthors.removeAttributeNode(Book_.publisher);
+bookWithAuthors.addAttributeNode(Book_.authors);
+var book = em.find(bookWithAuthors, isbn);
+----
+
+Graphs declared using `@NamedEntityGraph` are available via the static metamodel.
+
+[source,java]
+----
+var book = em.find(Book_.withAuthors, isbn);
+----
+
+Don’t get too excited by this feature; the `@NamedEntityGraph` annotation itself is still pretty awful to work with, and so it’s still better to specify entity graphs in code.
+
+== Enhancements to JPQL
+
+In this release, we’ve focused on adding some features which Hibernate and EclipseLink already supported as extensions to the specification of JPQL. We’ve also made some last-minute changes which align JPQL with the needs of Jakarta Data.
+
+=== Streamlined syntax for queries with a single entity
+
+Hibernate has long let you write a query in the following streamlined form:
+
+[source,hql]
+----
+from Book where title like :pattern
+----
+
+Notice that:
+
+- there’s no alias for `Book`, and so its fields don’t need to be qualified, and
+- the `select` clause is optional, since the query just returns the queried entity.
+
+This is now allowed in JPQL, and is the usual way to write a query in Jakarta Data Query Language, which is a subset of JPQL.
+
+When an entity does not explicitly specify an alias, its alias defaults to this.
+
+[source,hql]
+----
+select count(this) from Book where title like :pattern
+----
+
+=== Unions and intersections
+
+Hibernate and EclipseLink both already support `union`, `intersect`, and `except`, with the exact same semantics that these operations have in SQL. These operations are now part of the specification.
+
+[source,hql]
+----
+select name from Person
+union select name from Organization
+----
+
+=== Ad hoc joins
+
+Ad hoc ANSI SQL-style joins between entity types are now allowed.
+
+[source,hql]
+----
+from Author a join Customer c on a.name = c.firstName||' '||c.lastName
+----
+
+=== New standard functions
+
+Persistence 3.1 already added a number of new standard functions. In 3.2 we’ve also added `cast()`, `left()`, `right()`, `replace()`, `id()`, and `version()`.
+
+[source,hql]
+----
+select cast(left(fileName,2) as Integer) as chapter from Document
+----
+
+We’ve also finally blessed the use of the standard SQL concatenation operator `||` as an alternative to `concat()`.
+
+=== Improved sorting
+
+The JPQL order by clause was extremely limited, and implementations of JPQL supported quite a lot more than what was “officially” required by the specification. We now bless the use of:
+
+- `nulls first` and `nulls last`, to specify the precedence of null values, and
+- sorting with arbitrary scalar expressions—in particular, using `upper()` or `lower()` to achieve case-insensitive sorting.
+
+[source,java]
+----
+from Book order by lower(title) asc, publicationDate desc nulls first
+----
+
+== Enhancements to mapping annotations
+
+Persistence 3.2 doesn’t have any big new features in the area of O/R mapping, but it has some minor things which are worth mentioning here.
+
+=== Enum mappings
+
+The brand-new `@EnumeratedValue` annotation lets you customize the mapping between values of a Java enum and their encodings in the database.
+
+[source,java]
+----
+enum Status {
+     OPEN(0), CLOSED(1), CANCELLED(-1);
+
+     @EnumeratedValue
+     final int intValue;
+
+     Status(int intValue) {
+         this.intValue = intValue;
+     }
+}
+----
+
+=== Id generators
+
+The `@SequenceGenerator` and `@TableGenerator` annotations have always lacked ergonomics. They must be placed directly on an entity class, or on its `@Id` field, but the user was forced to declare a name for the generator, and reference it in the `@GeneratedValue` annotation. This was pretty redundant (and also lacked type safety). We’ve now:
+
+- made the `name` optional, and
+- allowed these annotations to occur at the `PACKAGE` level.
+
+When `@GeneratedValue` does not explicitly specify a generator name, the provider automatically picks the “closest” matching sequence or table generator defined in the same entity class or package.
+
+=== Improved DDL generation
+
+Several enhancements support improved control over DDL generation:
+
+- The `@Table` and `@Column` annotations now feature `comment` and `check` members, and check constraints are expressed via the new `@CheckConstraint` annotation.
+- A number of annotations have a new `options` member which may be used to append arbitrary SQL fragments to generated DDL. For `@Column`, this now replaces many uses of the problematic `columnDefinition` member.
+- `@Column` now has a `secondPrecision` for mapping timestamps.
+
+=== Instant and Year
+
+The types `Instant` and `Year` from `java.time` are now considered basic types.
+
+=== Record embeddables
+
+A Java record type may now be annotated `@Embeddable` or used as an `@IdClass`.
+
+In addition, we’ve relaxed some useless restrictions:
+
+- entity and embeddable classes may now be `static` inner classes, and
+- primary key classes are no longer required to be `public` and serializable.
+
+== Integration with CDI and other dependency injection containers
+
+The `persistence.xml` file now has `<qualifier>` and `<scope>` elements supporting the use of CDI to inject an `EntityManager` or `EntityManagerFactory`.
+
+In fact, these elements aren’t limited to use with CDI, they can be used with any implementation of `jakarta.inject`.
+
+== Oh, you really made it this far?
+
+Phew! That’s a lot of new stuff. While many of these enhancements may quite fairly be characterized as “minor”, I hope you can see that there’s a common thread of improved type safety running through many of them, and that taken together they represent a rather major step forward.
+
+In a future post I’ll talk about our plans for Persistence 4.0.
