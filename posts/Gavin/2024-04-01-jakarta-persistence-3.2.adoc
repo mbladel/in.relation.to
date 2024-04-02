@@ -313,7 +313,7 @@ In addition, we’ve relaxed some useless restrictions:
 
 == Integration with CDI and other dependency injection containers
 
-The `persistence.xml` file now has `<qualifier>` and `<scope>` elements supporting the use of CDI to inject an `EntityManager` or `EntityManagerFactory`.
+The `persistence.xml` file now has `<qualifier>` and `<scope>` elements supporting the use of https://www.cdi-spec.org[CDI] to inject an `EntityManager` or `EntityManagerFactory`.
 
 In fact, these elements aren’t limited to use with CDI, they can be used with any implementation of `jakarta.inject`.
 
