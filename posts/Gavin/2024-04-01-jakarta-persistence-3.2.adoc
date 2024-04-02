@@ -321,4 +321,6 @@ In fact, these elements aren’t limited to use with CDI, they can be used with 
 
 Phew! That’s a lot of new stuff. While many of these enhancements may quite fairly be characterized as “minor”, I hope you can see that there’s a common thread of improved type safety running through many of them, and that taken together they represent a rather major step forward.
 
+Speaking for the Hibernate team, our implementation of JPA 3.2 is very well advanced, and will be delivered later this year as Hibernate 7.0. You're going to love it, I promise.
+
 In a future post I’ll talk about our plans for Persistence 4.0.
