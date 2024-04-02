@@ -11,7 +11,7 @@ Today this technology enjoys broad acceptance, even among former critics. But in
 
 This post will concentrate on new features we’ve added to Jakarta Persistence. It’s worth mentioning that quite a lot of work has gone into clarifying the semantics of existing features, and rewriting certain sections of the spec for clarity and readability. This is an ongoing effort. The spec is more than 500 pages in length; rewriting such text without accidentally changing its meaning is a slow and painstaking process.
 
-In a previous post I talked about https://in.relation.to/2024/04/01/jakarta-persistence-3/[Jakarta Data]. Alignment of the two specifications has been a further priority.
+In a previous post I talked about https://in.relation.to/2024/04/01/jakarta-data-1/[Jakarta Data]. Alignment of the two specifications has been a further priority.
 
 == API improvements
 
