@@ -76,8 +76,8 @@ Occasionally, we need to call JDBC directly. So there are similar methods define
 
 [source,java]
 ----
-em.runWithConnection(c -> {
-    try (procedure = connection.prepareCall("{call something(?)}");
+em.runWithConnection(connection -> {
+    try (var procedure = connection.prepareCall("{call something(?)}")) {
         procedure.setLong(1, id);
         procedure.execute();
     }
