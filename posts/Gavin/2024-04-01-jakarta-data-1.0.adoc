@@ -129,7 +129,7 @@ public class Library_ implements Library {
 }
 ----
 
-As you can see, this is an injectable CDI bean, which makes use of a Hibernate StatelessSession to interact with the database. You may obtain an instance from CDI using:
+As you can see, this is an injectable CDI bean, which makes use of a Hibernate `StatelessSession` to interact with the database. You may obtain an instance from CDI using:
 
 [source,java]
 ----
