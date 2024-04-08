@@ -1,0 +1,27 @@
+= Hibernate to move to the Commonhaus Foundation
+Gavin King
+:awestruct-tags: [ "Commonhaus" ]
+:awestruct-layout: blog-post
+---
+
+Today we're excited to announce that Hibernate is moving to the link:https://www.commonhaus.org[Commonhaus Foundation]. For the last 20 years, development of Hibernate has been funded and sponsored by JBoss, and then by Red Hat. This support will continue just as before, since Hibernate remains a critical component of JBoss EAP, WildFly, and Quarkus, but the project itself will now be hosted on neutral ground.
+
+== Why move to a foundation?
+
+Since the release of Hibernate ORM 6, we and other members of the Java community have measured an explosion of interest in and activity around Hibernate. We expect this momentum to continue with the impending releases of Jakarta Data 1.0 and Jakarta Persistence 3.2, which we've played a major role in formulating. Why would we pick this moment to move the project to a foundation, right when things are going so well?
+
+Well, the truth is that while we've done many things right over the years, we've never really succeeded in overcoming the perception that this is a project dominated by one company. That's something we want to finally change. Red Hat's leadership and sponsorship have been a source of stability, continuity, and user confidence, and we don't wish to undermine that. But what we would like to do now is open up space for other groups and companies to also feel included in the project.
+
+== Why Commonhaus?
+
+Commonhaus is the perfect vehicle for this ambition. Commonhaus has been conceived as an independent host for independently-managed projects, funded by independents.
+The foundation features an https://www.commonhaus.org/about/governance.html[innovative governance framework] that’s different to other open-source foundations. Central to its vision is the idea that projects are self-governing, each with its own way of going about things.
+
+Hibernate is joining projects including Jackson, OpenRewrite, JReleaser, Morphia and JBang. All these projects are today announcing tentative agreements to donate intellectual property to the foundation. This includes all Hibernate subprojects: ORM, Validator, Reactive, Search, and Tools.
+The foundation guarantees that all these projects will remain open source indefinitely.
+
+== What’s next?
+
+So Hibernate will keep being Hibernate. But that doesn't mean nothing will change. We want Hibernate to be the best place for people doing cool shit with data, and if we're successful in that, then naturally we as Red Hat--and we as individuals--will need to surrender some control over the project to make space for others outside Red Hat.
+
+As a team we’re hard at work on delivering Hibernate ORM 7, Hibernate Search 7.2, and more, but we’re not too busy to hear your ideas: come and tell us about them!
