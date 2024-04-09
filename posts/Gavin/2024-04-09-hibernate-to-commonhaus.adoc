@@ -25,3 +25,13 @@ The foundation guarantees that all these projects will remain open source indefi
 So Hibernate will keep being Hibernate. But that doesn't mean nothing will change. We want Hibernate to be the best place for people doing cool shit with data, and if we're successful in that, then naturally we as Red Hat--and we as individuals--will need to surrender some control over the project to make space for others outside Red Hat.
 
 As a team we’re hard at work on delivering Hibernate ORM 7, Hibernate Search 7.2, and more, but we’re not too busy to hear your ideas: come and tell us about them!
+
+{zwsp} +
+{zwsp} +
+
+[.text-center]
+For questions about the move, see https://hibernate.org/community/commonhaus/faq-joining/[the dedicated FAQ],
+or contact us through https://hibernate.org/community/[the usual channels].
+
+{zwsp} +
+{zwsp} +
