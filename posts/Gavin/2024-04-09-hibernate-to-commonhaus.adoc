@@ -4,7 +4,7 @@ Gavin King
 :awestruct-layout: blog-post
 ---
 
-Today we're excited to announce that Hibernate is moving to the link:https://www.commonhaus.org[Commonhaus Foundation]. For the last 20 years, development of Hibernate has been funded and sponsored by JBoss, and then by Red Hat. This support will continue just as before, since Hibernate remains a critical component of JBoss EAP, WildFly, and Quarkus, but the project itself will now be hosted on neutral ground.
+Today we're excited to link:https://github.com/commonhaus/foundation/discussions/123[announce] that Hibernate is moving to the link:https://www.commonhaus.org[Commonhaus Foundation]. For the last 20 years, development of Hibernate has been funded and sponsored by JBoss, and then by Red Hat. This support will continue just as before, since Hibernate remains a critical component of JBoss EAP, WildFly, and Quarkus, but the project itself will now be hosted on neutral ground.
 
 == Why move to a foundation?
 
