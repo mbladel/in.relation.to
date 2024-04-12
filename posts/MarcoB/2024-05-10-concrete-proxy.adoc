@@ -1,0 +1,166 @@
+= Hibernate ORM 6.6 - @ConcreteProxy Annotation
+Marco Belladelli
+:awestruct-tags: [ "Hibernate ORM", "Discussions" ]
+:awestruct-layout: blog-post
+---
+
+Hibernate ORM version `6.6` is already available in Alpha version, and a final release will follow soon. In today's post we're going to dive into one of the new features that comes with this version, the new `@ConcreteProxy` annotation.
+
+== The problem
+
+Hibernate ORM uses _entity proxies_ to enable link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#best-practices-fetching-associations[lazy association fetching], allowing the framework to delay retrieval of the associated entity's data to only when it's actually needed, i.e. when accessing one of its properties. Proxies are also used whenever obtaining link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#pc-get-reference[entity references], without needing to access the datasource to initialize their attributes.
+
+While entity proxies work transparently most of the time, and you as a user of Hibernate don't need to do anything special, there are some cases where they would not behave the same way as plain entity instances would. When an association is link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#entity-inheritance[polymorphic], that is, when it references an entity type with subtypes, the proxy is not aware of the concrete subtype of the entity instance it represents. The subtype is only known after the proxy is fetched and the target table has already been read. This is obviously problematic when relying on Java's `instanceof` operator and type casts.
+
+Consider these simple entity mappings:
+
+====
+[source, java, indent=0]
+----
+@Entity
+@Inheritace(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "animal_type")
+class Animal {
+    @Id
+    @GeneratedValue
+    Long id;
+
+    Long getId() {
+        return id;
+    }
+}
+
+class Cat extends Animal {
+    String name;
+
+    String getName() {
+        return name;
+    }
+}
+
+class Owner {
+    @Id
+    Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "animal_id")
+    Animal animal;
+}
+----
+====
+
+When loading an instance of `Owner`, its `animal` property will be a *proxy* instance:
+
+====
+[source, java, indent=0]
+----
+Cat cat = new Cat();
+cat.name = "Bella";
+
+Owner owner = new Owner();
+owner.id = 1L;
+owner.animal = cat;
+
+// later
+
+Owner owner = session.find( Owner.class, 1L );
+
+Hibernate.isInitialized( owner.animal ) // returns false
+
+owner.animal instanceof Animal; // returns true
+((Animal) owner.animal).getId(); // returns the id
+
+owner.animal instanceof Cat; // returns false
+((Cat) owner.animal).getName(); // throws ClassCastException
+----
+====
+
+Note the generated SQL never accesses the `Animal` table:
+====
+[source, sql, indent=0]
+----
+    select
+        c1_0.id,
+        c1_0.lazy_id
+    from
+        Owner c1_0
+    where
+        sp1_0.id=1
+----
+====
+
+Previously, the only way to get around this would be using the `Hibernate` class' static utility methods designed to handle proxies, like `getClassLazy()` and `unproxy()`, but they would result in early initialization when dealing with inheritance hierarchies.
+
+The Hibernate team has decided to give our users an alternative way of working with proxies for inheritance-enabled entity types with the guarantee that they will always be created with the appropriate subtype.
+
+[NOTE]
+====
+Contextually, the Java language has been improving support of `instanceof` based logic, with Java 14's _Pattern Matching for instanceof_ (see link:https://openjdk.org/jeps/305[JEP 305]) and, more recently, Java 17's _Pattern Matching for switch_ (see link:https://openjdk.org/jeps/406[JEP 406]).
+====
+
+== The solution
+
+We introduced the new `@ConcreteProxy` annotation: when placed on the root of an entity inheritance hierarchy, this annotation will tell Hibernate to always *resolve the real entity type* when creating lazy proxy instances. Taking from the previous example, this would mean that:
+====
+[source, java, indent=0]
+----
+Owner owner = session.find( Owner.class, 1L );
+
+owner.animal instanceof Cat; // returns true
+Cat cat = (Cat) owner.animal;
+Hibernate.isInitialized( cat ); // returns false, laziness is preserved
+cat.getName(); // returns the Cat's name
+----
+====
+
+The lazy `animal` association still contains an uninitialized proxy, but this time it respects the actual subtype associated with the loaded `Owner` instance. This means that *laziness will be preserved* while any `instanceof` checks or explicit type casts will now work as expected.
+
+[IMPORTANT]
+====
+This functionality does not come free: in order to determine the concrete type to use when creating the proxy instance, Hibernate might need to access the entity's table(s) to discover the actual subtype corresponding to a specific identifier value.
+====
+
+The previous query this time will include a `left join` with the `Animal` table that's used to read the discriminator value:
+====
+[source, sql, indent=0]
+----
+    select
+        o1_0.id,
+        o1_0.animal_id,
+        a1_0.animal_type
+    from
+        Owner o1_0
+    left join
+        Animal a1_0
+            on a1_0.id=o1_0.animal_id
+    where
+        op1_0.id=1
+----
+====
+
+The concrete type will be determined:
+
+* With *single table* inheritance, the discriminator column value is left joined when fetching associations or simply read from the entity table when getting references.
+* When using *joined* inheritance, all subtype tables must be left joined to determine the concrete type. Note, however, that when using an explicit discriminator column, the behavior is the same as for single-table inheritance.
+* Finally, for *table-per-class* inheritance, all subtype tables must be (union) queried to determine the concrete type.
+
+Here's another example of the query used to retrieve the concrete type of an `Animal` when requesting a lazy reference:
+====
+[source, sql, indent=0]
+----
+    select
+        a1_0.animal_type
+    from
+        Animal a1_0
+    where
+        a1_0.id=1
+----
+====
+
+For additional information and context you can refer to the original link:https://hibernate.atlassian.net/browse/HHH-17818[feature request] on our Jira.
+
+== What's next
+
+To circumvent the need to access a lazy association’s target table through a `left join` each time we need to create a proxy, Hibernate could store the discriminator value directly on the owner-side table, along with the foreign key itself. This denormalization of the discriminator value would make `@ConcreteProxy` association retrieval more efficient while preserving its functionality guarantees regarding `instanceof` checks and type casts.
+
+If you want to let us know what you think of this new feature or if you have any questions about it please reach us through the link:https://hibernate.org/community/[usual channels].
