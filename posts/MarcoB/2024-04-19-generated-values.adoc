@@ -1,0 +1,96 @@
+= Hibernate ORM 6.5 - Arbitrary generated values retrieval
+Marco Belladelli
+:awestruct-tags: [ "Hibernate ORM", "Discussions" ]
+:awestruct-layout: blog-post
+---
+
+Hibernate ORM version `6.5` already received a couple candidate release versions, and a final release will follow shortly. This post highlights one of the improvements that comes with this version: efficient retrieval of non-identifier database generated values.
+
+== What happened before
+
+Hibernate ORM already supported retrieving `GenerationType.IDENTITY` within the executed `insert` statement through the SQL `RETURNING` clause for mutation statements (see for example link:https://www.postgresql.org/docs/current/dml-returning.html[this page of PostgreSQL's documentation]) or through JDBC's link:https://docs.oracle.com/en/java/javase/21/docs/api/java.sql/java/sql/Statement.html#getGeneratedKeys()[`Statement#getGeneratedKeys()`] API, for databases that support either of these features.
+
+An entity mapping, though, could have multiple on-execution link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#mapping-generated[generated properties] (i.e. columns that are populated on the database side during or after mutation statement execution) that are not part of the primary key. Furthermore, dynamic value generation is not restricted to insert operations but could also take place when updating managed entity instances. Your mapping's values might be relying on the execution of database functions, or columns dynamically updated on statement execution through triggers.
+
+Hibernate needs to read these values when storing entities in its persistence context (aka the first-level cache), to ensure consistency with the state on the database. Until now, a subsequent `select` query would run after each `insert` or `update` statement was emitted for mappings that included on-execution generated properties to retrieve their values and populate the corresponding entity instance accordingly.
+
+Take, for example, this simple mapping:
+====
+[source, java, indent=0]
+----
+@Entity
+class TestEntity {
+    @Id
+    Long id;
+
+    @Generated( event = EventType.INSERT )
+    String name;
+
+    @UpdateTimestamp( source = SourceType.DB )
+    Date updateDate;
+}
+----
+====
+
+Here, the `name` property might be generated on insert by a database trigger, and `updateDate` could for example be populated through the `localtimestamp` function when running the statement. When persisting an entity of this type, Hibernate will need to run 2 statements:
+====
+[source, sql, indent=0]
+----
+    -- insert the row on the database
+    insert
+    into
+        TestEntity
+        (id, updateDate)
+    values
+        (?, localtimestamp)
+
+    -- select back the generated values
+    select
+        name,
+        updateDate
+    from
+        TestEntity
+----
+====
+
+== What's new
+
+With Hibernate 6.5, arbitrary database-generated values will also be retrieved within the execution of `insert` and `update` statements *efficiently*, i.e. through the `insert ... returning` syntax or `getGeneratedKeys()` API that was already leveraged for `IDENTITY`. This effectively *halves* the number of round-trips to the database necessary when inserting or updating managed entities containing generated values, replacing the need of running an additional `select` query after the mutation was applied.
+
+[NOTE]
+====
+This improvement is completely transparent from the user's perspective: you will not need to change any of your entity mappings or configure additional properties; Hibernate will automatically take care of generated values for you more efficiently from now on.
+====
+
+For example, an insert statement created for the previous example on a database supporting the `insert ... returning` syntax would now look something like this:
+====
+[source, sql, indent=0]
+----
+    -- insert the row on the database and retrieve the values in one go
+    insert
+    into
+        TestEntity
+        (id, updateDate)
+    values
+        (?, localtimestamp)
+    returning name, updateDate
+----
+====
+
+Performance of mutation operations concerning mappings that have on-execution generated values should be greatly improved. Remember that Hibernate's link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#batch[statement batching] feature cannot be used in combination with generated values, so previously 2 different statements had to be emitted for each mutated row (the mutation itself and the subsequent select).
+
+We leveraged this new ability to retrieve arbitrary properties from the database when executing mutation statements to also retrieve link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#identifiers-rowid[rowid-like] values efficiently when requested through the link:https://docs.jboss.org/hibernate/orm/6.5/javadocs/org/hibernate/annotations/RowId.html[`@RowId`] annotation, to then utilize them as usual for CRUD operations.
+
+[WARNING]
+====
+This new feature might not work on all databases, especially for older versions. The Hibernate team has tested and identified how each of the officially supported Dialects can take advantage of the new functionality, most modern databases have support some form of efficient generated-value retrieval.
+====
+
+
+If you want to find our more about this feel free to refer to the original link:https://hibernate.atlassian.net/browse/HHH-17406[Improvement Proposal] you can find on Hibernate's Jira.
+
+== Outlook
+
+Thanks to this improvement we now have the ability to return arbitrary on-execution generated values for both `insert` and `update` mutation statements. This potentially opens the door for a user-facing feature, allowing for example a custom HQL mutation query syntax through which one can specify a custom list of properties to return as a result of running the update.
+
+If you want to let us know what you think of this new feature or if you have any questions about it please reach us through the link:https://hibernate.org/community/[usual channels].
