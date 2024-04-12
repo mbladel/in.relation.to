@@ -1,0 +1,159 @@
+= Hibernate ORM 6.6 - @ConcreteProxy Annotation
+Marco Belladelli
+:awestruct-tags: [ "Hibernate ORM", "Discussions" ]
+:awestruct-layout: blog-post
+---
+
+=== TODO: CHANGE THIS
+Hibernate ORM version `6.6` has just released a first candidate version, and the final release will follow shortly. This post highlights one of the new features that comes with this version, the new `@ConcreteProxy` annotation.
+
+== The problem
+
+Hibernate ORM has historically leveraged the concept of entity proxies to handle link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#best-practices-fetching-associations[lazy association fetching], delaying the retrieval of the associated entities only when one of their properties is accessed, and for obtaining link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#pc-get-reference[entity references] without initializing their data.
+
+While entity proxies work transparently most of the time, without the need of special treatment from the user's perspective, there are some special cases where they would not behave the same as plain entity instances. In particular, when taking advantage of Hibernate's link:https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#entity-inheritance[Inheritance] support, proxies created for a supertype are not aware of the actual entity hierarchy subtype they belong to because the target table was not yet accessed to determine it. This can cause problems when using Java's `instanceof` operator and type-casts. Consider this example mappings:
+
+====
+[source, java, indent=0]
+----
+@Entity
+@Inheritace(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name = "disc_col")
+class Parent {
+    @Id
+    @GeneratedValue
+    Long id;
+
+    Long getId() {
+        return id;
+    }
+}
+
+class Child extends Parent {
+    String name;
+
+    String getName() {
+        return name;
+    }
+}
+
+class Container {
+    @Id
+    Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lazy_id")
+    Parent lazyToOne;
+}
+----
+====
+
+When loading an instance of `Container`, its `lazyToOne` property will be a Proxy instance:
+
+====
+[source, java, indent=0]
+----
+Child child = new Child();
+child.name = "Marco";
+
+Container container = new Container();
+container.id = 1L;
+container.lazyToOne = child;
+
+// later
+
+Container container = session.find( Container.class, 1L );
+
+container.lazyToOne instanceof Parent; // returns true
+((Parent) container.lazyToOne).getId(); // returns the id
+
+container.lazyToOne instanceof Child; // returns false
+((Child) container.lazyToOne).getName(); // causes a ClassCastException
+----
+====
+
+Note the generated SQL never accesses the `Parent` table:
+====
+[source, sql, indent=0]
+----
+    select
+        c1_0.id,
+        c1_0.lazy_id
+    from
+        Container c1_0
+    where
+        sp1_0.id=1
+----
+====
+
+Previously, the only way to get around this would be using the `Hibernate` class static methods designed to handle proxies, like `getClassLazy(T proxy)` and `unproxy(T proxy, Class<T> entityClass)`, but both of these methods would cause early initialization when dealing with inheritance hierarchies.
+
+Since Java seems to be pushing for more support of `instanceof` based logic, with Java 14's Pattern Matching for instanceof (see link:https://openjdk.org/jeps/305[JEP 305]) and more recently Java 17's Pattern Matching for switch (see link:https://openjdk.org/jeps/406[JEP 406]) we decided to give our users an alternative way of creating correctly-type proxies.
+
+== The solution
+
+We introduced the new `@ConcreteProxy` annotation: when placed on the root of an entity inheritance hierarchy, this annotation will cause Hibernate to *always resolve the real entity type* when creating uninitialized Proxy instances. Taking from the previous example, this would mean that:
+====
+[source, java, indent=0]
+----
+Container container = session.find( Container.class, 1L );
+
+container.lazyToOne instanceof Child; // returns true
+((Child) container.lazyToOne).getName(); // works correctly and returns the Child's name
+----
+====
+
+[IMPORTANT]
+====
+Not that this functionality does not come free: in order to determine the concrete type to use when creating the Proxy instance, Hibernate might need to access the association target's table(s) to discover the actual subtype corresponding to a specific identifier value.
+====
+
+The previous query this time will include a `left join` with the `Parent` table used to read the discriminator value:
+====
+[source, sql, indent=0]
+----
+    select
+        c1_0.id,
+        c1_0.lazy_id,
+        p1_0.disc_col
+    from
+        Container c1_0
+    left join
+        Parent p1_0
+            on p1_0.id=c1_0.lazy_id
+    where
+        sp1_0.id=1
+----
+====
+
+The concrete type will be determined:
+
+* With *single table* inheritance, the discriminator column value will be left joined when fetching associations or simply read from the entity table when getting references.
+* When using *joined* inheritance, all subtype tables will need to be left joined to determine the concrete type. Note however that when using an explicit discriminator column, the behavior is the same as for single-table inheritance.
+* Finally, for *table-per-class* inheritance, all subtype tables will need to be (union) queried to determine the concrete type.
+
+[NOTE]
+====
+The same is true for the `getReference()` method: while this usually meant the datasource would not be accessed, for `@ConcreteProxy` annotated hierarchies a query to determine the type will always be issued.
+====
+
+Here is an example of a query used to retrieve the concrete type of a `Parent` lazy reference:
+====
+[source, sql, indent=0]
+----
+    select
+        p1_0.disc_col
+    from
+        Parent pb1_0
+    where
+        p1_0.id=1
+----
+====
+
+For additional information and context see the original link:https://hibernate.atlassian.net/browse/HHH-17818[New Feature Request] on our Jira.
+
+== What's next
+
+To avoid the need of accessing the target table through a `left join` each time we need to create a Proxy for a lazy association, Hibernate could store the discriminator value on the association owner's table, along with the Foreign Key. This denormalization of data would make `@ConcreteProxy` more efficient while preserving its effectiveness with `instanceof` checks and type-casts.
+
+If you want to let us know what you think of this new feature or if you have any questions about it please reach us through the link:https://hibernate.org/community/[usual channels].
