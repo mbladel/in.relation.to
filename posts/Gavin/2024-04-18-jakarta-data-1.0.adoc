@@ -1,0 +1,290 @@
+= A preview of Jakarta Data 1.0 (Part II)
+Gavin King
+:awestruct-tags: [ "Jakarta Data" ]
+:awestruct-layout: blog-post
+---
+
+Jakarta Data is a new specification for persistence in Java, scheduled for release as part of the EE 11 platform.
+In a link:https://in.relation.to/2024/04/01/jakarta-data-1[previous post] I introduced the basic features of a Jakarta Data repository, with a strong emphasis on how Jakarta Data provides compile-time type safety, enabling static analysis performed by an annotation processor.
+
+This involved moving some information that used to be expressed in procedural code into:
+
+- annotations like `@Query` and `@Find`, and
+- the names and types of repository method parameters.
+
+Today we're going to talk about some more dynamic features of Jakarta Data.
+You might anticipate that these would come with a loss of type safety, but we've found a way to avoid that.
+The essential ingredient is a static metamodel.
+
+== The static metamodel
+
+You might already be familiar with the Jakarta Persistence static metamodel.
+This was an idea I came up with way back in JPA 2.0 when annotation processing was brand-new; the goal was to bring type safety to the JPA Criteria Query API.
+
+For an entity class `Book`, the annotation processor produces a class `Book_` exposing objects representing the persistent fields of `Book`.
+For example, `Book_.title` represents the field `title` of the entity `Book`.
+This is in some sense just a workaround for the fact that we've been waiting more than a quarter-century for method and field literals in the Java language.
+
+Jakarta Data introduces its own static metamodel, which is different to the Jakarta Persistence metamodel, but conceptually very similar.
+Instead of `Book_`, the Jakarta Data static metamodel for `Book` is exposed by the class `_Book`.
+
+Let's see how the static metamodel is useful, by considering a simple example.
+
+We're about to <<Dynamic sorting,meet>> a class called `Sort`, which represents sorting based on a field of an entity.
+It's perfectly possible to obtain an instance of `Sort` by passing the name of a field:
+
+[source,java]
+----
+var sort = Sort.asc("title");
+----
+
+Unfortunately, since this is in regular procedural code, and not in an annotation, the field name `"title"` cannot be validated at compile time.
+So this is the bad way to do it.
+
+A much better solution is to use the static metamodel to obtain an instance of `Sort`.
+
+[source,java]
+----
+var sort = _Book.title.asc();
+----
+
+The static metamodel also declares constants containing the names of persistent fields.
+For example, `_Book.TITLE` evaluates to the string `"title"`.
+These constants are useful because they may be used as annotation values.
+
+== Sorting by a static order
+
+A `@Find` or `@Query` method may specify an order for query results.
+Naturally, one way to do this is using the JDQL/JPQL `order by` clause.
+
+[source,java]
+----
+@Query("where title like ?1 and yearPublished = ?2 " +
+       "order by title, isbn")
+List<Book> booksByTitle(String title, Year yearPublished);
+----
+
+Please recall from the previous post that `HibernateProcessor` validates the JDQL query at compile time.
+If `Book` doesn't have a field named `title`, you'll know about it straight away.
+
+An alternative approach, especially useful with `@Find` methods, is the `@OrderBy` annotation:
+
+[source,java]
+----
+@Find
+@OrderBy("title")
+@OrderBy("isbn")
+List<Book> booksByTitle(String title, Year yearPublished);
+----
+
+This is still completely type safe! `HibernateProcessor` checks that `Book` really has fields named `title` and `isbn` at compile time.
+If you're having trouble accepting this, here's an alternative which is exactly the same amount of typesafe:
+
+[source,java]
+----
+@Find
+@OrderBy(_Book.TITLE)
+@OrderBy(_Book.ISBN)
+List<Book> booksByTitle(String title);
+----
+
+It's extremely common for sorting to involve a dynamic selection of entity fields, and when that's the case, neither of the solutions we've just seen is appropriate.
+Instead, we're going to need a way to pass objects representing sorting criteria to repository methods.
+
+[[pagination]]
+== Pagination and dynamic sorting
+
+A query method may have additional parameters which specify:
+
+- additional sorting criteria, and/or
+- a limit and offset restricting the results which are actually returned to the client.
+
+=== Dynamic sorting
+
+Dynamic sorting criteria are expressed using the types `Sort` and `Order`:
+
+- an instance of `Sort` represents a single criterion for sorting query results, and
+- an instance of `Order` packages multiple ``Sort``s together.
+
+A query method may accept an instance of `Sort`.
+
+[source,java]
+----
+@Find
+List<Book> books(@Pattern String title, Year yearPublished,
+                 Sort<Book> sort);
+----
+
+This method might be called as follows:
+
+[source,java]
+----
+var books =
+        library.books(pattern, year,
+                      _Book.title.ascIgnoreCase());
+----
+
+Alternatively the method may accept an instance of `Order`.
+
+[source,java]
+----
+@Find
+List<Book> books(@Pattern String title, Year yearPublished,
+                 Order<Book> order);
+----
+
+The method might now be called like this:
+
+[source,java]
+----
+var books =
+       library.books(pattern, year,
+                     Order.of(_Book.title.ascIgnoreCase(),
+                              _Book.isbn.asc());
+----
+
+Dynamic sorting criteria may be combined with static criteria.
+
+[source,java]
+----
+@Find
+@OrderBy("title")
+List<Book> books(@Pattern String title, Year yearPublished,
+                 Sort<Book> sort);
+----
+
+We're not convinced this is very useful in practice.
+
+=== Limits
+
+A `Limit` is the simplest way to express a subrange of query results.
+It specifies:
+
+- `maxResults`, the maximum number of results to be returned from the database server to the client, and,
+- optionally, `startAt`, an offset from the very first result.
+
+These values map directly the familiar `setMaxResults()` and `setFirstResults()` of the Jakarta Persistence `Query` interface.
+
+[source,java]
+----
+@Find
+@OrderBy(_Book.TITLE)
+List<Book> books(@Pattern String title, Year yearPublished,
+                 Limit limit);
+----
+[source,java]
+----
+var books =
+        library.books(pattern, year,
+                      Limit.of(MAX_RESULTS));
+----
+
+A more sophisticated approach is provided by `PageRequest`.
+
+=== Offset-based pagination
+
+A `PageRequest` is superficially similar to a `Limit`, except that it's specified in terms of:
+
+- a page `size`, and
+- a numbered `page`.
+
+We can use a `PageRequest` just like a `Limit`.
+
+[source,java]
+----
+@Find
+@OrderBy("title")
+@OrderBy("isbn")
+List<Book> books(@Pattern String title, Year yearPublished,
+                 PageRequest pageRequest);
+----
+[source,java]
+----
+var books =
+        library.books(pattern, year,
+                      PageRequest.ofSize(PAGE_SIZE));
+----
+
+Query results should be totally ordered when a repository method is used for pagination.
+The easiest way to be sure that you have a well-defined total order is to specify the identifier of the entity as the last element of the order.
+For this reason, we specified `@OrderBy("isbn")` in the previous example.
+
+A repository method which accepts a `PageRequest` may return a `Page` instead of a `List`, making it easier to implement pagination.
+
+[source,java]
+----
+@Find
+@OrderBy("title")
+@OrderBy("isbn")
+Page<Book> books(@Pattern String title, Year yearPublished,
+                 PageRequest pageRequest);
+----
+[source,java]
+----
+var page =
+        library.books(pattern, year,
+                      PageRequest.ofSize(PAGE_SIZE));
+var books = page.content();
+long totalPages = page.totalPages();
+// ...
+while (page.hasNext()) {
+    page = library.books(pattern, year,
+                         page.nextPageRequest().withoutTotal());
+    books = page.content();
+    // ...
+}
+----
+
+Pagination may be combined with dynamic sorting.
+
+[source,java]
+----
+@Find
+Page<Book> books(@Pattern String title, Year yearPublished,
+                 PageRequest pageRequest, Order<Book> order);
+----
+
+
+A repository method with return type `Page` uses SQL `offset` and `limit` (or similar, depending on the database) to implement pagination.
+This is called _offset-based pagination_.
+A problem with offset-based pagination is that it's quite vulnerable to missed or duplicate results when the database is modified between page requests.
+Therefore, Jakarta Data offers an alternative solution, which I prefer to call _key-based pagination_.
+
+[NOTE]
+====
+The specification disagrees with me and calls it _cursor-based pagination_, but please don't confuse this as having something to do with database-level cursors.
+It's even sometimes called "keyset" pagination but this term makes little sense, since there's only one key involved.
+Similarly, offset-based pagination is sometimes called "rowset" pagination.
+This is even worse: a set of rows is by definition a relation, i.e. a table.
+====
+
+=== Key-based pagination
+
+In key-based pagination, the query results must be totally ordered by a unique key of the result set.
+The SQL offset is replaced with a restriction on the unique key, appended to the `where` clause of the query:
+
+- a request for the _next_ page of query results uses the key value of the _last_ result on the current page to restrict the results, or
+- a request for the _previous_ page of query results uses the key value of the _first_ result on the current page to restrict the results.
+
+For key-based pagination, it's _essential_ that the query has a total order.
+
+From our point of view as users of Jakarta Data, key-based pagination works almost exactly like offset-based pagination.
+The difference is that we must declare our repository method to return `CursoredPage`.
+
+[source,java]
+----
+@Find
+@OrderBy("title")
+@OrderBy("isbn")
+CursoredPage<Book> books(@Pattern String title, Year yearPublished,
+                 PageRequest pageRequest);
+----
+
+On the other hand, with key-based pagination, Hibernate must do some work under the covers rewriting our query.
+
+== Current status
+
+We're mere days from wrapping up work on the final proposal for Jakarta Data 1.0, though the specification must still undergo a review ballot.
+
+Hibernate Data Repositories already implements the specification completely, but the current plan is to release it as part of Hibernate 6.6.
+It's already available in some sort of "preview" form in Hibernate 6.5 CR1, but we needed to make some important enhancements to `StatelessSession`, and we didn't think it entirely proper to sneak such things into a CR2 release.

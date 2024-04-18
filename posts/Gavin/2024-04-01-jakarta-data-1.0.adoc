@@ -1,4 +1,4 @@
-= A preview of Jakarta Data 1.0
+= A preview of Jakarta Data 1.0 (Part I)
 Gavin King
 :awestruct-tags: [ "Jakarta Data" ]
 :awestruct-layout: blog-post
@@ -387,3 +387,5 @@ Of course, there’s much more I could say about JDQL and about query methods in
 == Current status
 
 Jakarta Data 1.0 and Jakarta Persistence 3.2 are now very close to release, and they’re the biggest news in Java persistence in more than a decade. We’re already in the process of wrapping up our implementation of Persistence 3.2 in Hibernate 7.0. Our implementation of Jakarta Data has been done on the Hibernate 6 branch, and will be available first in 6.5 or 6.6.
+
+Continue reading link:https://in.relation.to/2024/04/01/jakarta-data-1[Part II].
