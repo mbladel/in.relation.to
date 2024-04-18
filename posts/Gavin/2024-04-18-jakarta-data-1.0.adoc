@@ -288,3 +288,5 @@ We're mere days from wrapping up work on the final proposal for Jakarta Data 1.0
 
 Hibernate Data Repositories already implements the specification completely, but the current plan is to release it as part of Hibernate 6.6.
 It's already available in some sort of "preview" form in Hibernate 6.5 CR1, but we needed to make some important enhancements to `StatelessSession`, and we didn't think it entirely proper to sneak such things into a CR2 release.
+
+UPDATE: Hibernate Data Repositories now link:https://twitter.com/1ovthafew/status/1780986944182177985[passes the Jakarta Data TCK].
