@@ -277,7 +277,7 @@ The difference is that we must declare our repository method to return `Cursored
 @OrderBy("title")
 @OrderBy("isbn")
 CursoredPage<Book> books(@Pattern String title, Year yearPublished,
-                 PageRequest pageRequest);
+                         PageRequest pageRequest);
 ----
 
 On the other hand, with key-based pagination, Hibernate must do some work under the covers rewriting our query.
