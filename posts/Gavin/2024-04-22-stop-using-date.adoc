@@ -1,0 +1,21 @@
+= It's long past time to stop using `Date`
+Gavin King
+:awestruct-tags: [ "Jakarta Persistence" ]
+:awestruct-layout: blog-post
+---
+
+I had so many interesting new things to talk about in link:https://in.relation.to/2024/04/01/jakarta-persistence-3/[summary of Jakarta Persistence 3.2] that I forgot to mention an important thing we're taking away.
+
+CAUTION: Support for `java.util.Date`, `java.sql.Date`, `java.sql.Time`, and `java.sql.Timestamp` has been deprecated in JPA 3.2 and will be removed in a future release of the specification.
+
+For reasons unknown to me, `java.util.Date` is not marked `@Deprecated`, though it clearly should have been deprecated back in 2014--amazingly, its Javadoc doesn't even _mention_ the existence of `java.time`.
+Nevertheless, every experienced Java developer knows that `java.util.Date` is and has always been _terrible_, and that its friends in `java.sql` are even worse.
+Since the introduction of `java.time`, nobody should be writing new code involving `java.util.Date` or its subclasses.
+
+JPA has required support for `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetTime`, and `OffsetDateTime` since version 2.2.
+Version 3.2 adds support for `Instant` and `Year`.
+These are the types you should use to represent dates, times, and datetimes in your entity classes.
+
+Therefore, JPA 3.2 deprecates the `@Temporal` and `@MapKeyTemporal` annotations, the `TemporalType` enumeration, and all the overloads of `Query.setParameter()` which accept a `TemporalType`.
+
+So if you're still using `java.util.Date`, I have just one word of advice: **stop**.
