@@ -4,7 +4,7 @@ Gavin King
 :awestruct-layout: blog-post
 ---
 
-I had so many interesting new things to talk about in link:https://in.relation.to/2024/04/01/jakarta-persistence-3/[summary of Jakarta Persistence 3.2] that I forgot to mention an important thing we're taking away.
+I had so many interesting new things to talk about in the link:https://in.relation.to/2024/04/01/jakarta-persistence-3/[summary of Jakarta Persistence 3.2] that I forgot to mention an important thing we're taking away.
 
 CAUTION: Support for `java.util.Date`, `java.util.Calendar`, `java.sql.Date`, `java.sql.Time`, and `java.sql.Timestamp` has been deprecated in JPA 3.2 and will be removed in a future release of the specification.
 
@@ -16,6 +16,12 @@ JPA has required support for `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetT
 Version 3.2 adds support for `Instant` and `Year`.
 These are the types you should use to represent dates, times, and datetimes in your entity classes.
 
-Therefore, JPA 3.2 deprecates the `@Temporal` and `@MapKeyTemporal` annotations, the `TemporalType` enumeration, and all the overloads of `Query.setParameter()` which accept a `TemporalType`.
+Therefore, JPA 3.2 deprecates:
+
+- the `@Temporal` and `@MapKeyTemporal` annotations,
+- the `TemporalType` enumeration, and
+- all the overloads of `Query.setParameter()` which accept a `TemporalType`.
+
+Let's see if Java itself will follow our lead on this.
 
 So if you're still using `java.util.Date`, I have just one word of advice: **stop**.
