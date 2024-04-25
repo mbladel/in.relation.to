@@ -35,7 +35,7 @@ For 6.5 this behavior is disabled by default.  To opt-in,
 hibernate.type.java_time_use_direct_jdbc=true
 ----
 
-See the link:{javadocs-url}/org/hibernate/cfg/MappingSettings.html#PREFER_JAVA_TYPE_JDBC_TYPES[setting Javadoc] for additional details.
+See the link:{javadocs-url}/org/hibernate/cfg/MappingSettings.html#JAVA_TIME_USE_DIRECT_JDBC[setting Javadoc] for additional details.
 
 
 IMPORTANT: This feature is known to not work with the Sybase jConnect driver despite
@@ -222,7 +222,7 @@ See the link:{user-guide-url}#hql-insert[User Guide] for more details.
 [[stateless-session]]
 == Work on StatelessSession
 
-`StatelessSession` now supports https://hibernate.atlassian.net/browse/HHH-17620[filters] and https://hibernate.atlassian.net/browse/HHH-17673[SQL logging]
+`StatelessSession` now supports https://hibernate.atlassian.net/browse/HHH-17620[filters] and https://hibernate.atlassian.net/browse/HHH-17673[SQL logging].
 
 
 [[jakarta-data]]
