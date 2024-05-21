@@ -18,7 +18,7 @@ Consider these simple entity mappings:
 [source, java, indent=0]
 ----
 @Entity
-@Inheritace(strategy = InheritanceType.SINGLE_TABLE)
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "animal_type")
 class Animal {
     @Id
