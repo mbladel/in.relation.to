@@ -8,7 +8,7 @@ Steve Ebersole
 :migration-guide-url: {docs-url}/migration-guide/migration-guide.html
 :user-guide-url: {docs-url}/userguide/html_single/Hibernate_User_Guide.html
 :orm6-guide-url: {docs-url}/introduction/html_single/Hibernate_Introduction.html
-:query-guide-url: {docs-url}/introduction/html_single/Hibernate_Query_Language.html
+:query-guide-url: {docs-url}/querylanguage/html_single/Hibernate_Query_Language.html
 :63-jira-released-page: https://hibernate.atlassian.net/projects/HHH/versions/32084
 :62-jira-released-page: https://hibernate.atlassian.net/projects/HHH/versions/32170
 
@@ -21,7 +21,7 @@ has also been link:{62-jira-released-page}[released].
 6.3 provides 2 new documentation guides:
 
 1. An introductory link:{orm6-guide-url}[Hibernate 6 Guide] 
-2. The Hibernate Query Language link:{query-guide-url}[synatx and feature guide]
+2. The Hibernate Query Language link:{query-guide-url}[syntax and feature guide]
 
 
 [[query-methods]]
