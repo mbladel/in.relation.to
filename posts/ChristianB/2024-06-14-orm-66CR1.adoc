@@ -23,7 +23,7 @@ Hibernate 6.6 includes a complete certified compatible implementation of Jakarta
 To make use of _Hibernate Data Repositories_, you'll need to depend on:
 
 - our annotation processor, `hibernate-jpamodelgen`, and
-- the Jakarta Data API, `jakarta.data-api.
+- the Jakarta Data API, `jakarta.data-api`.
 
 For example, in Gradle:
 
