@@ -15,12 +15,10 @@ Christian Beikov
 [[jakarta-data]]
 == Jakarta Data
 
-Hibernate 6.6 includes a complete implementation of the Jakarta Data 1.0 Release. As https://in.relation.to/2024/04/18/jakarta-data-1/[discussed here], our implementation:
+Hibernate 6.6 includes a complete certified compatible implementation of Jakarta Data 1.0. As https://in.relation.to/2024/04/18/jakarta-data-1/[discussed here], our implementation:
 
 - is based on compile-time code generation via an annotation processor, enabling unprecedented compile-time type safety, and
 - is backed by Hibernate's `StatelessSession`, which has been enhanced especially to meet the needs of Jakarta Data.
-
-This implementation already passes the Jakarta Data TCK, and we have a request for certification pending.
 
 To make use of _Hibernate Data Repositories_, you'll need to depend on:
 
